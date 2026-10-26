@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<title>블루투스 LED 테스트</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&family=Pretendard:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  @font-face {
+    font-family: '자이언츠 Regular';
+    src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2307-1@1.1/Giants-Regular.woff2') format('woff2');
+  }
+  :root { --red: #FF0000; --black: #000; --gray: #666; --soft: #F4F6F8; --line: #CCC; --ok: #2E7D32; --giant: '자이언츠 Regular', 'Pretendard', sans-serif; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: #fff; color: var(--black); font-family: 'Pretendard', sans-serif; }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 16px; }
+  h1 { font-family: var(--giant); font-weight: normal; font-size: 24px; margin: 4px 0 14px; }
+  h1 .red { color: var(--red); }
+  h2 { font-family: var(--giant); font-weight: normal; font-size: 17px; margin: 0 0 10px; }
+  .card { border: 2px solid var(--black); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+  button { font-family: var(--giant); font-size: 17px; border: 2px solid var(--black); border-radius: 12px; background: #fff; padding: 12px; cursor: pointer; width: 100%; color: var(--black); }
+  button:active { transform: scale(.98); }
+  button:disabled { opacity: .35; }
+  .connect { background: var(--red); border-color: var(--red); color: #fff; }
+  .connect.on { background: #fff; color: var(--red); }
+  .pwrow { display: flex; gap: 8px; margin-bottom: 10px; }
+  .pwrow input { flex: 1; min-width: 0; font: 700 20px 'JetBrains Mono', monospace; letter-spacing: 6px; text-align: center; padding: 10px; border: 2px solid var(--black); border-radius: 12px; }
+  .pwrow input.bad { border-color: var(--red); animation: shake .3s; }
+  @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+  .badge { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 10px; font-weight: 700; font-size: 14px; color: var(--gray); text-align: center; }
+  .badge::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
+  .badge.on { color: var(--ok); } .badge.on::before { background: var(--ok); }
+
+  .bulb { width: 120px; height: 120px; margin: 4px auto 12px; border-radius: 50%; background: #E5E7EB; border: 4px solid #333; transition: background .08s, box-shadow .08s; }
+  .bulb.on { background: #FACC15; box-shadow: 0 0 40px 10px rgba(250, 204, 21, .6); }
+  .ack { text-align: center; font-size: 14px; font-weight: 700; color: var(--gray); min-height: 22px; margin-bottom: 12px; }
+  .ack.ok { color: var(--ok); } .ack.fail { color: var(--red); }
+  .btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .btns button { height: 84px; font-size: 20px; line-height: 1.2; }
+  .btns button small { display: block; font-family: 'Pretendard'; font-size: 12px; color: var(--gray); }
+
+  #log { height: 170px; overflow-y: auto; background: #111; color: #ddd; border-radius: 10px; padding: 8px 10px; font: 12px/1.6 'JetBrains Mono', monospace; }
+  #log .tx { color: #E5E7EB; } #log .rx { color: #4ADE80; } #log .fail { color: #F87171; } #log .sys { color: #FACC15; }
+  svg { width: 100%; height: auto; display: block; }
+  .hint { font-size: 12.5px; color: var(--gray); line-height: 1.6; margin-top: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 10px; }
+  th, td { border: 1px solid var(--line); padding: 6px; text-align: center; }
+  th { background: var(--soft); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>블루투스 <span class="red">LED 테스트</span></h1>
+
+  <div class="card">
+    <h2>🔒 비밀번호 입력 후 연결</h2>
+    <div class="pwrow">
+      <input id="pw" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off">
+    </div>
+    <button id="btn-connect" class="connect">연결</button>
+    <div id="status" class="badge">연결 안 됨</div>
+    <div class="hint">비밀번호가 맞아야 블루투스 목록이 열립니다. 목록에서 <b>ledtest</b>를 고르세요. 연결 뒤 아두이노도 비밀번호를 한 번 더 검사합니다.</div>
+  </div>
+
+  <div class="card">
+    <div id="bulb" class="bulb"></div>
+    <div id="ack" class="ack">연결 전</div>
+    <div class="btns">
+      <button data-n="1" disabled>1번<small>깜빡</small></button>
+      <button data-n="2" disabled>2번<small>깜빡</small></button>
+      <button data-n="3" disabled>3번<small>깜빡</small></button>
+    </div>
+    <div class="hint">전구 그림은 아두이노가 <b>"받았다(BLINK)"</b>고 응답했을 때만 깜빡입니다. 그림과 실제 LED가 같은 횟수로 깜빡이면 정상입니다.</div>
+  </div>
+
+  <div class="card">
+    <h2>송수신 기록</h2>
+    <div id="log"></div>
+  </div>
+
+  <div class="card">
+    <h2>회로</h2>
+    <svg viewBox="0 0 520 330" xmlns="http://www.w3.org/2000/svg" font-family="Pretendard, 'Malgun Gothic', sans-serif">
+      <rect width="520" height="330" fill="#fff"/>
+      <rect x="10" y="20" width="150" height="290" rx="12" fill="#0E6BA8"/>
+      <text x="85" y="48" text-anchor="middle" font-size="16" font-weight="800" fill="#fff">Arduino UNO</text>
+      <text x="62" y="200" text-anchor="middle" font-size="11" fill="#cfe3f5">전원: USB</text>
+      <g font-size="13" font-weight="700" text-anchor="middle">
+        <rect x="110" y="70" width="50" height="24" rx="5" fill="#fff"/><text x="135" y="87" fill="#C62828">5V</text>
+        <rect x="110" y="104" width="50" height="24" rx="5" fill="#fff"/><text x="135" y="121">GND</text>
+        <rect x="110" y="138" width="50" height="24" rx="5" fill="#fff"/><text x="135" y="155" fill="#0E6BA8">D2</text>
+        <rect x="110" y="172" width="50" height="24" rx="5" fill="#fff"/><text x="135" y="189" fill="#0E6BA8">D3</text>
+        <rect x="110" y="226" width="50" height="24" rx="5" fill="#fff"/><text x="135" y="243" fill="#0E6BA8">D4</text>
+        <rect x="110" y="260" width="50" height="24" rx="5" fill="#fff"/><text x="135" y="277">GND</text>
+      </g>
+      <!-- BLE -->
+      <rect x="360" y="40" width="150" height="170" rx="12" fill="#6A1B9A"/>
+      <text x="445" y="66" text-anchor="middle" font-size="15" font-weight="800" fill="#fff">BLE 모듈</text>
+      <text x="460" y="190" text-anchor="middle" font-size="11" fill="#E1BEE7">이름: ledtest</text>
+      <g font-size="12" font-weight="700" text-anchor="middle">
+        <rect x="360" y="76" width="52" height="22" rx="5" fill="#fff"/><text x="386" y="91">VCC</text>
+        <rect x="360" y="110" width="52" height="22" rx="5" fill="#fff"/><text x="386" y="125">GND</text>
+        <rect x="360" y="144" width="52" height="22" rx="5" fill="#fff"/><text x="386" y="159">TXD</text>
+        <rect x="360" y="178" width="52" height="22" rx="5" fill="#fff"/><text x="386" y="193">RXD</text>
+      </g>
+      <polyline points="162,82 250,82 250,87 358,87" fill="none" stroke="#E53935" stroke-width="4" stroke-linejoin="round"/>
+      <polyline points="162,116 270,116 270,121 358,121" fill="none" stroke="#333" stroke-width="4" stroke-linejoin="round"/>
+      <polyline points="162,150 290,150 290,155 358,155" fill="none" stroke="#00ACC1" stroke-width="4" stroke-linejoin="round"/>
+      <polyline points="162,184 310,184 310,189 358,189" fill="none" stroke="#8E24AA" stroke-width="4" stroke-linejoin="round"/>
+      <!-- LED -->
+      <polyline points="162,238 200,238" fill="none" stroke="#F57C00" stroke-width="4"/>
+      <rect x="200" y="229" width="60" height="18" rx="4" fill="#F5E6C8" stroke="#8D6E63" stroke-width="2"/>
+      <rect x="212" y="229" width="5" height="18" fill="#C62828"/><rect x="223" y="229" width="5" height="18" fill="#C62828"/><rect x="234" y="229" width="5" height="18" fill="#795548"/>
+      <text x="230" y="222" text-anchor="middle" font-size="12" font-weight="700">220Ω</text>
+      <polyline points="260,238 300,238" fill="none" stroke="#F57C00" stroke-width="4"/>
+      <polygon points="300,224 300,252 326,238" fill="#FACC15" stroke="#333" stroke-width="2"/>
+      <line x1="326" y1="224" x2="326" y2="252" stroke="#333" stroke-width="3"/>
+      <text x="300" y="268" text-anchor="middle" font-size="11" font-weight="700">+ 긴 다리</text>
+      <text x="345" y="220" text-anchor="middle" font-size="11" font-weight="700">− 짧은 다리</text>
+      <polyline points="326,238 350,238 350,272 162,272" fill="none" stroke="#333" stroke-width="4" stroke-linejoin="round"/>
+    </svg>
+    <table>
+      <tr><th>아두이노</th><th>연결</th></tr>
+      <tr><td>5V / GND</td><td>BLE VCC / GND</td></tr>
+      <tr><td>D2</td><td>BLE TXD</td></tr>
+      <tr><td>D3</td><td>BLE RXD</td></tr>
+      <tr><td>D4</td><td>220Ω 저항 → LED 긴 다리(+)</td></tr>
+      <tr><td>GND</td><td>LED 짧은 다리(−)</td></tr>
+    </table>
+    <div class="hint">저항은 220Ω ~ 1kΩ 아무거나 괜찮습니다 (클수록 LED가 어두워짐). 저항 없이 LED만 꽂으면 LED와 핀이 상할 수 있어요.</div>
+  </div>
+</div>
+
+<script>
+  const PASSWORD = '1234';
+  const SERVICE_UUID = 0xffe0, CHAR_UUID = 0xffe1, ACK_MS = 1500, BLINK_MS = 300;
+  const $ = id => document.getElementById(id);
+  const btns = document.querySelectorAll('.btns button');
+  let device = null, ch = null, rxBuf = '', ackTimer = null, authed = false, retry = null;
+
+  function log(text, cls) {
+    const el = $('log'), d = document.createElement('div');
+    d.className = cls;
+    d.textContent = `${new Date().toTimeString().slice(0, 8)}  ${text}`;
+    el.appendChild(d);
+    el.scrollTop = el.scrollHeight;
+  }
+  function setStatus(text, on) { $('status').textContent = text; $('status').classList.toggle('on', on); }
+  function setAck(text, cls) { $('ack').textContent = text; $('ack').className = 'ack ' + (cls || ''); }
+  function enable(on) { btns.forEach(b => b.disabled = !on); }
+
+  async function write(s) {
+    const data = new TextEncoder().encode(s);
+    if (ch.properties.writeWithoutResponse) await ch.writeValueWithoutResponse(data);
+    else await ch.writeValue(data);
+  }
+  function waitAck(msg) {
+    clearTimeout(ackTimer);
+    ackTimer = setTimeout(() => { setAck('✗ ' + msg, 'fail'); log('✗ ' + msg, 'fail'); }, ACK_MS);
+  }
+
+  async function sendAuth() {
+    await write('P' + PASSWORD + '\n');
+    log('→ 비밀번호 전송', 'tx');
+    setAck('아두이노 인증 확인 중...', '');
+    waitAck('인증 응답 없음 — 배선(TXD→D2, RXD→D3)·코드 업로드 확인');
+  }
+
+  async function blink(n) {
+    if (!ch) return;
+    try {
+      await write(String(n));
+      log(`→ 보냄 '${n}' (${n}번 깜빡)`, 'tx');
+      setAck('아두이노 응답 기다리는 중...', '');
+      waitAck('응답 없음 — 배선·코드 업로드 확인');
+    } catch (e) {
+      log(`✗ 전송 실패 — ${e.message}`, 'fail');
+      setAck('✗ 전송 실패', 'fail');
+    }
+  }
+
+  function animate(n) {
+    const b = $('bulb');
+    for (let i = 0; i < n; i++) {
+      setTimeout(() => b.classList.add('on'), i * 2 * BLINK_MS);
+      setTimeout(() => b.classList.remove('on'), (i * 2 + 1) * BLINK_MS);
+    }
+  }
+
+  // 아두이노 응답 처리 (줄 단위)
+  function onRx(text) {
+    rxBuf += text;
+    let i;
+    while ((i = rxBuf.indexOf('\n')) >= 0) {
+      const msg = rxBuf.slice(0, i).trim();
+      rxBuf = rxBuf.slice(i + 1);
+      if (!msg) continue;
+      log(`← 받음 "${msg}"`, 'rx');
+      clearTimeout(ackTimer);
+      if (msg === 'AUTH OK') {
+        authed = true; enable(true);
+        setStatus((device.name || '모듈') + ' 연결됨 · 인증 완료', true);
+        setAck('✓ 인증 완료 — 버튼을 눌러보세요', 'ok');
+        if (retry) { const n = retry; retry = null; blink(n); }
+      } else if (msg === 'AUTH FAIL') {
+        authed = false; enable(false);
+        setAck('✗ 아두이노가 비밀번호를 거부함', 'fail');
+        device.gatt.disconnect();
+      } else if (msg === 'LOCKED') {
+        // 30초 동안 안 쓰면 아두이노가 다시 잠금 → 자동 재인증 후 다시 보냄
+        const last = [...$('log').children].reverse().find(d => d.textContent.includes("→ 보냄 '"));
+        retry = last ? Number(last.textContent.match(/'(\d)'/)[1]) : null;
+        log('잠김 → 자동 재인증', 'sys');
+        sendAuth();
+      } else if (/^BLINK \d$/.test(msg)) {
+        const n = Number(msg.slice(-1));
+        setAck(`✓ 아두이노가 받음 — ${n}번 깜빡`, 'ok');
+        animate(n);
+      } else if (/^DONE \d$/.test(msg)) {
+        setAck(`✓ ${msg.slice(-1)}번 깜빡 완료`, 'ok');
+      }
+    }
+  }
+
+  btns.forEach(b => b.addEventListener('click', () => blink(Number(b.dataset.n))));
+  $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-connect').click(); });
+
+  $('btn-connect').addEventListener('click', async () => {
+    if (device && device.gatt.connected) { device.gatt.disconnect(); return; }
+
+    // ★ 비밀번호가 맞을 때만 블루투스 연결 진행
+    const pw = $('pw');
+    if (pw.value !== PASSWORD) {
+      pw.classList.remove('bad'); void pw.offsetWidth; pw.classList.add('bad');
+      setStatus('비밀번호가 틀렸습니다', false);
+      log('✗ 비밀번호 틀림 — 연결 차단', 'fail');
+      pw.value = '';
+      return;
+    }
+    pw.classList.remove('bad');
+
+    if (!navigator.bluetooth) {
+      log('이 브라우저는 Web Bluetooth 미지원 — 안드로이드 Chrome / 아이폰 Bluefy 사용', 'fail');
+      return;
+    }
+    try {
+      setStatus('장치 검색 중...', false);
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: 'ledtest' }, { services: [SERVICE_UUID] }],
+        optionalServices: [SERVICE_UUID]
+      });
+      setStatus('연결 중...', false);
+      log(`${device.name || '(이름 없음)'} 연결 시도`, 'sys');
+      const server = await device.gatt.connect();
+      const svc = await server.getPrimaryService(SERVICE_UUID);
+      ch = await svc.getCharacteristic(CHAR_UUID);
+      await ch.startNotifications();
+      ch.addEventListener('characteristicvaluechanged', e => onRx(new TextDecoder().decode(e.target.value)));
+      $('btn-connect').textContent = '연결 해제'; $('btn-connect').classList.add('on');
+      setStatus('연결됨 · 아두이노 인증 중...', false);
+      device.addEventListener('gattserverdisconnected', () => {
+        ch = null; authed = false; enable(false); clearTimeout(ackTimer);
+        setStatus('연결 끊김', false); setAck('연결 전', '');
+        $('btn-connect').textContent = '연결'; $('btn-connect').classList.remove('on');
+        log('연결 끊김', 'fail');
+      });
+      setTimeout(sendAuth, 300);
+    } catch (e) {
+      ch = null; enable(false);
+      setStatus('연결 실패', false);
+      log(`연결 실패 — ${e.message}`, 'fail');
+    }
+  });
+</script>
+</body>
+</html>
