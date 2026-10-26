@@ -29,6 +29,8 @@
   .pwrow input.bad { border-color: var(--red); animation: shake .3s; }
   @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
   .badge { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 10px; font-weight: 700; font-size: 14px; color: var(--gray); text-align: center; }
+  .showall { margin-top: 8px; width: auto; padding: 6px 12px; font-size: 13px; border-width: 1.5px; color: var(--gray); border-color: var(--line); display: block; margin-left: auto; margin-right: auto; }
+  .showall.on { color: var(--red); border-color: var(--red); }
   .badge::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
   .badge.on { color: var(--ok); } .badge.on::before { background: var(--ok); }
 
@@ -59,6 +61,7 @@
       <input id="pw" type="tel" inputmode="numeric" maxlength="8" placeholder="1234" autocomplete="off">
     </div>
     <button id="btn-connect" class="connect">연결</button>
+    <button id="btn-all" class="showall">모든 기기 보기: 끔</button>
     <div id="status" class="badge">연결 안 됨</div>
     <div class="hint">비밀번호가 맞아야 블루투스 목록이 열립니다. 목록에서 <b>ledtest</b>를 고르세요. 연결 뒤 아두이노도 비밀번호를 한 번 더 검사합니다.</div>
   </div>
@@ -137,7 +140,12 @@
   const SERVICE_UUID = 0xffe0, CHAR_UUID = 0xffe1, ACK_MS = 1500, BLINK_MS = 300;
   const $ = id => document.getElementById(id);
   const btns = document.querySelectorAll('.btns button');
-  let device = null, ch = null, rxBuf = '', ackTimer = null, authed = false, retry = null;
+  let device = null, ch = null, rxBuf = '', ackTimer = null, authed = false, retry = null, showAll = false;
+  $('btn-all').addEventListener('click', () => {
+    showAll = !showAll;
+    $('btn-all').textContent = '모든 기기 보기: ' + (showAll ? '켬' : '끔');
+    $('btn-all').classList.toggle('on', showAll);
+  });
 
   function log(text, cls) {
     const el = $('log'), d = document.createElement('div');
@@ -247,10 +255,11 @@
     }
     try {
       setStatus('장치 검색 중...', false);
-      device = await navigator.bluetooth.requestDevice({
-        filters: [{ namePrefix: 'speedstar' }, { namePrefix: 'ledtest' }, { namePrefix: 'CAR' }, { namePrefix: 'BT05' }, { services: [SERVICE_UUID] }], // 우리 모듈만 표시
-        optionalServices: [SERVICE_UUID]
-      });
+      // 기본: 우리 모듈만 표시 / '모든 기기 보기'를 켜면 주변 기기 전부 표시
+      const opts = showAll
+        ? { acceptAllDevices: true, optionalServices: [SERVICE_UUID] }
+        : { filters: [{ namePrefix: 'speedstar' }, { namePrefix: 'ledtest' }, { namePrefix: 'CAR' }, { namePrefix: 'BT05' }, { services: [SERVICE_UUID] }], optionalServices: [SERVICE_UUID] };
+      device = await navigator.bluetooth.requestDevice(opts);
       setStatus('연결 중...', false);
       log(`${device.name || '(이름 없음)'} 연결 시도`, 'sys');
       const server = await device.gatt.connect();
