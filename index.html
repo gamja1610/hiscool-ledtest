@@ -56,7 +56,7 @@
   <div class="card">
     <h2>🔒 비밀번호 입력 후 연결</h2>
     <div class="pwrow">
-      <input id="pw" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off">
+      <input id="pw" type="tel" inputmode="numeric" maxlength="8" placeholder="1234" autocomplete="off">
     </div>
     <button id="btn-connect" class="connect">연결</button>
     <div id="status" class="badge">연결 안 됨</div>
@@ -231,10 +231,11 @@
 
     // ★ 비밀번호가 맞을 때만 블루투스 연결 진행
     const pw = $('pw');
-    if (pw.value !== PASSWORD) {
+    const typed = pw.value.normalize('NFKC').replace(/\D/g, ''); // 전각 숫자·공백 등 정리
+    if (typed !== PASSWORD) {
       pw.classList.remove('bad'); void pw.offsetWidth; pw.classList.add('bad');
       setStatus('비밀번호가 틀렸습니다', false);
-      log('✗ 비밀번호 틀림 — 연결 차단', 'fail');
+      log(`✗ 비밀번호 틀림 (입력 ${pw.value.length}자리) — 연결 차단`, 'fail');
       pw.value = '';
       return;
     }
