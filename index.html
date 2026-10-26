@@ -248,7 +248,7 @@
     try {
       setStatus('장치 검색 중...', false);
       device = await navigator.bluetooth.requestDevice({
-        filters: [{ namePrefix: 'ledtest' }, { services: [SERVICE_UUID] }],
+        acceptAllDevices: true, // 폰이 예전 이름을 기억해도 목록에 뜨도록 전체 표시
         optionalServices: [SERVICE_UUID]
       });
       setStatus('연결 중...', false);
